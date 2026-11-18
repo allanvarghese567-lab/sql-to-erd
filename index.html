@@ -1,1 +1,693 @@
-FULL_CONTENT_HERE
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQL to ERD</title>
+<style>
+:root{--bg:#eceee9;--panel:#f8f9f6;--ink:#1c2927;--mute:#66736f;--line:#cdd3cc;--tbl:#1f5f5b;--view:#8a5a14;--fk:#2b7a74;--vw:#b07a2a;--pk:#b07a2a;--box:#fff;--sel:#d6452f}
+@media (prefers-color-scheme:dark){:root{--bg:#141a19;--panel:#1b2321;--ink:#e3ebe8;--mute:#8d9b97;--line:#2e3a37;--tbl:#2d7f79;--view:#a8741f;--fk:#5bb5ad;--vw:#d9a24a;--pk:#e0b061;--box:#212b29;--sel:#ff7a63}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg);color:var(--ink);
+  font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;
+  display:grid;
+  grid-template-columns:minmax(280px,360px) 1fr;
+  overflow:hidden;
+}
+aside{
+  background:var(--panel);border-right:1px solid var(--line);
+  padding:16px;display:flex;flex-direction:column;gap:12px;
+  overflow:auto;min-height:0;
+}
+h1{font:600 18px/1.2 Georgia,"Times New Roman",serif;margin:0}
+h2{font:600 13px/1.2 system-ui,sans-serif;margin:0 0 6px}
+textarea{
+  width:100%;height:220px;resize:vertical;
+  font:12px/1.5 ui-monospace,Consolas,monospace;
+  background:var(--box);color:var(--ink);
+  border:1px solid var(--line);border-radius:6px;padding:10px;tab-size:2;
+}
+button{font:inherit;background:var(--tbl);color:#fff;border:0;border-radius:6px;padding:7px 12px;cursor:pointer;white-space:nowrap}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,.item span:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#status{font-size:12px;color:var(--mute)}
+#warn{font-size:12px;color:var(--sel)}
+.item{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:5px}
+.item:hover,.item.on{background:var(--bg)}
+.item span{flex:1;cursor:pointer;font:13px ui-monospace,Consolas,monospace;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:11px;padding:1px 6px;border-radius:9px;color:#fff;flex-shrink:0}
+.tag.t{background:var(--tbl)}.tag.v{background:var(--view)}
+main{display:grid;grid-template-rows:1fr minmax(160px,210px);min-width:0;min-height:0;height:100%}
+#canvas{overflow:auto;position:relative;background-image:radial-gradient(var(--line) 1px,transparent 1px);background-size:20px 20px;min-height:0}
+svg{display:block;user-select:none}
+.node{cursor:grab}
+.node:active{cursor:grabbing}
+.box{fill:var(--box);stroke:var(--line);stroke-width:1.2}
+.node.sel .box{stroke:var(--sel);stroke-width:2.4}
+.hdT{fill:var(--tbl)}.hdV{fill:var(--view)}
+.nm{fill:#fff;font:600 13px ui-monospace,Consolas,monospace}
+.cn{fill:var(--ink);font:12px ui-monospace,Consolas,monospace}
+.ct{fill:var(--mute);font:11px ui-monospace,Consolas,monospace}
+.bd{font:700 9px system-ui,sans-serif}
+.rowline{stroke:var(--line);stroke-width:.6}
+.edge{fill:none;stroke-width:1.6}
+.edge.inf{stroke-dasharray:2 4}.edge.fk{stroke:var(--fk)}.edge.vw{stroke:var(--vw);stroke-dasharray:5 4}
+.card{font:700 11px system-ui,sans-serif;fill:var(--fk)}
+.dim{opacity:.18}
+#detail{border-top:1px solid var(--line);background:var(--panel);padding:12px 16px;overflow:auto;display:grid;grid-template-columns:minmax(200px,1fr) minmax(200px,1fr);gap:16px;min-height:0}
+#detail table{border-collapse:collapse;font:12px ui-monospace,Consolas,monospace;width:100%}
+#detail td,#detail th{padding:2px 8px 2px 0;text-align:left;border-bottom:1px solid var(--line)}
+#detail th{color:var(--mute);font-weight:600}
+pre{margin:0;font:11px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;color:var(--mute);word-break:break-word}
+.empty{color:var(--mute);grid-column:1/-1}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--mute);flex-wrap:wrap}
+.legend i{display:inline-block;width:22px;border-top:2px solid var(--fk);vertical-align:middle;margin-right:5px}
+.legend i.d{border-top:2px dashed var(--vw)}
+
+/* ===== Responsive breakpoints ===== */
+@media (max-width: 900px) {
+  body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    overflow: auto;
+  }
+  aside {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    max-height: 42vh;
+  }
+  main {
+    height: 58vh;
+    min-height: 320px;
+  }
+  textarea { height: 140px; }
+}
+
+@media (max-width: 600px) {
+  aside { padding: 12px; max-height: 48vh; }
+  h1 { font-size: 16px; }
+  textarea { height: 120px; font-size: 11px; }
+  button { padding: 6px 10px; font-size: 13px; }
+  main { height: 52vh; }
+  #detail {
+    grid-template-columns: 1fr;
+    padding: 10px 12px;
+  }
+  .legend { font-size: 11px; gap: 10px; }
+}
+
+@media (max-width: 400px) {
+  aside { max-height: 50vh; }
+  main { height: 50vh; }
+  .row { gap: 6px; }
+  button { padding: 6px 8px; font-size: 12px; }
+}
+
+/* Landscape phones */
+@media (max-height: 500px) and (orientation: landscape) {
+  body {
+    grid-template-columns: minmax(240px, 300px) 1fr;
+    grid-template-rows: 1fr;
+  }
+  aside { max-height: none; border-right: 1px solid var(--line); border-bottom: 0; }
+  main { height: 100%; }
+  textarea { height: 100px; }
+  #detail { grid-template-rows: 1fr; minmax: auto; }
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+</head>
+<body>
+<aside>
+  <h1>SQL to ERD</h1>
+  <div>
+    <h2>SQL statements</h2>
+    <textarea id="sql" spellcheck="false" aria-label="SQL statements"></textarea>
+  </div>
+  <div class="row">
+    <button id="draw">Draw diagram</button>
+    <button id="layout" class="ghost">Reset layout</button>
+    <button id="clear" class="ghost">Clear</button>
+  </div>
+  <label class="row"><input type="checkbox" id="infer" checked> Infer links from idName columns (for dumps without foreign keys)</label>
+  <div id="status"></div>
+  <div id="warn"></div>
+  <div>
+    <h2>Show on diagram</h2>
+    <div class="row" style="margin-bottom:6px">
+      <button id="showAll" class="ghost">Show all</button>
+      <button id="hideAll" class="ghost">Hide all</button>
+    </div>
+    <div id="list"></div>
+  </div>
+  <div class="legend"><span><i></i>foreign key (N to 1)</span><span><i style="border-top-style:dotted"></i>inferred from idName</span><span><i class="d"></i>view reads table</span></div>
+  <div>
+    <h2>Export</h2>
+    <div class="row">
+      <button id="exportMd" class="ghost">Markdown</button>
+      <button id="exportPdf" class="ghost">PDF</button>
+      <button id="exportDocx" class="ghost">DOCX</button>
+    </div>
+  </div>
+</aside>
+<main>
+  <div id="canvas"><svg id="svg" width="1200" height="800"></svg></div>
+  <div id="detail"><div class="empty">Select a table or view to see its columns and links.</div></div>
+</main>
+
+<script>
+const SAMPLE = `CREATE TABLE customers (
+  id INT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(120) UNIQUE
+);
+
+CREATE TABLE addresses (
+  id INT PRIMARY KEY,
+  customer_id INT NOT NULL REFERENCES customers(id),
+  city VARCHAR(80),
+  postcode VARCHAR(12)
+);
+
+CREATE TABLE categories (
+  id INT PRIMARY KEY,
+  name VARCHAR(80),
+  parent_id INT REFERENCES categories(id)
+);
+
+CREATE TABLE products (
+  id INT PRIMARY KEY,
+  category_id INT,
+  title VARCHAR(150),
+  price DECIMAL(10,2),
+  FOREIGN KEY (category_id) REFERENCES categories(id)
+);
+
+CREATE TABLE orders (
+  id INT PRIMARY KEY,
+  customer_id INT NOT NULL,
+  ship_address_id INT,
+  placed_at TIMESTAMP,
+  FOREIGN KEY (customer_id) REFERENCES customers(id),
+  FOREIGN KEY (ship_address_id) REFERENCES addresses(id)
+);
+
+CREATE TABLE order_items (
+  order_id INT,
+  product_id INT,
+  qty INT NOT NULL,
+  PRIMARY KEY (order_id, product_id),
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+CREATE VIEW v_order_totals AS
+SELECT o.id AS order_id, o.customer_id, SUM(oi.qty * p.price) AS total
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.id
+JOIN products p ON p.id = oi.product_id
+GROUP BY o.id, o.customer_id;
+
+CREATE VIEW v_customer_spend AS
+SELECT c.id, c.name, SUM(t.total) AS lifetime_spend
+FROM customers c
+JOIN v_order_totals t ON t.customer_id = c.id
+GROUP BY c.id, c.name;`;
+
+const $ = s => document.querySelector(s);
+const W = 230, HEAD = 30, ROW = 22;
+const clean = n => n.replace(/[`"\[\]]/g, '').split('.').pop().trim();
+const key = n => clean(n).toLowerCase();
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let nodes = {}, edges = [], hidden = new Set(), selected = null, warnings = [];
+
+function splitTop(s) {
+  const out = []; let d = 0, cur = '', q = '';
+  for (const ch of s) {
+    if (q) { if (ch === q) q = ''; }
+    else if (ch === "'" || ch === '`' || ch === '"') q = ch;
+    else if (ch === '(') d++;
+    else if (ch === ')') d--;
+    if (ch === ',' && d === 0 && !q) { out.push(cur); cur = ''; } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur);
+  return out;
+}
+const idList = s => s.split(',').map(clean);
+
+function parse(sql) {
+  nodes = {}; edges = []; warnings = [];
+  sql = sql.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  const stmts = sql.split(/;|\n(?=[ \t]*CREATE\s)/i).map(s => s.trim()).filter(Boolean);
+  const pending = [], views = [];
+
+  for (const st of stmts) {
+    let m = st.match(/^CREATE\s+(?:TEMP(?:ORARY)?\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([\w."`\[\]]+)\s*\(([\s\S]*)\)[^)]*$/i);
+    if (m) {
+      const name = clean(m[1]), cols = [], tablePk = [];
+      for (const raw of splitTop(m[2])) {
+        const p = raw.trim(); if (!p) continue;
+        const fk = p.match(/FOREIGN\s+KEY\s*\(([^)]+)\)\s*REFERENCES\s+([\w."`\[\]]+)\s*(?:\(([^)]+)\))?/i);
+        if (fk) {
+          const a = idList(fk[1]), b = fk[3] ? idList(fk[3]) : [];
+          a.forEach((c, i) => pending.push({from: name, col: c, to: clean(fk[2]), toCol: b[i] || null}));
+          continue;
+        }
+        const pk = p.match(/^(?:CONSTRAINT\s+\S+\s+)?PRIMARY\s+KEY\s*\(([^)]+)\)/i);
+        if (pk) { tablePk.push(...idList(pk[1])); continue; }
+        if (/^(CONSTRAINT|UNIQUE|KEY|INDEX|CHECK|FULLTEXT)\b/i.test(p)) continue;
+        const c = p.match(/^([`"\[][^`"\]]+[`"\]]|\w+)\s+(\w+(?:\s*\([^)]*\))?)([\s\S]*)$/);
+        if (!c) continue;
+        const rest = c[3];
+        const col = {name: clean(c[1]), type: c[2].replace(/\s+/g, ''), pk: /PRIMARY\s+KEY/i.test(rest), nn: /NOT\s+NULL/i.test(rest), fk: false};
+        const ref = rest.match(/REFERENCES\s+([\w."`\[\]]+)\s*(?:\(([^)]+)\))?/i);
+        if (ref) pending.push({from: name, col: col.name, to: clean(ref[1]), toCol: ref[2] ? clean(ref[2]) : null});
+        cols.push(col);
+      }
+      cols.forEach(c => { if (tablePk.map(x => x.toLowerCase()).includes(c.name.toLowerCase())) c.pk = true; });
+      if (nodes[key(name)]) warnings.push(`${name} is defined more than once; the last definition is used`);
+      nodes[key(name)] = {name, kind: 't', cols, sql: st + ';', x: 0, y: 0, sources: []};
+      continue;
+    }
+    m = st.match(/^ALTER\s+TABLE\s+([\w."`\[\]]+)\s+ADD\s+(?:CONSTRAINT\s+\S+\s+)?FOREIGN\s+KEY\s*\(([^)]+)\)\s*REFERENCES\s+([\w."`\[\]]+)\s*(?:\(([^)]+)\))?/i);
+    if (m) {
+      const a = idList(m[2]), b = m[4] ? idList(m[4]) : [];
+      a.forEach((c, i) => pending.push({from: clean(m[1]), col: c, to: clean(m[3]), toCol: b[i] || null}));
+      continue;
+    }
+    m = st.match(/^CREATE\s+(?:OR\s+REPLACE\s+)?(?:ALGORITHM\s*=\s*\w+\s+)?(?:DEFINER\s*=\s*\S+\s+)?(?:SQL\s+SECURITY\s+\w+\s+)?(?:MATERIALIZED\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?([\w."`\[\]]+)\s*(?:\(([^)]*)\))?\s*AS\s+([\s\S]+)$/i);
+    if (m) { views.push({name: clean(m[1]), cols: m[2] ? idList(m[2]) : null, body: m[3], sql: st + ';'}); continue; }
+    warnings.push('Skipped: ' + st.split('\n')[0].slice(0, 50));
+  }
+
+  for (const v of views) {
+    let cols = v.cols;
+    if (!cols) {
+      const s = v.body.match(/^\s*\(?\s*SELECT\s+(?:DISTINCT\s+)?([\s\S]*?)\s+FROM\b/i);
+      cols = s ? splitTop(s[1]).map(x => {
+        const t = x.trim(), al = t.match(/\bAS\s+([\w`"]+)\s*$/i);
+        return al ? clean(al[1]) : clean(t.split(/\s+/).pop().split('.').pop());
+      }) : [];
+    }
+    const sources = [...v.body.matchAll(/\b(?:FROM|JOIN)\s+\(*\s*([\w."`\[\]]+)/gi)].map(x => clean(x[1]));
+    nodes[key(v.name)] = {name: v.name, kind: 'v', cols: cols.map(c => ({name: c, type: '', pk: false, fk: false})), sql: v.sql, x: 0, y: 0, sources: [...new Set(sources)]};
+  }
+
+  for (const p of pending) {
+    const a = nodes[key(p.from)], b = nodes[key(p.to)];
+    if (!a || !b) { warnings.push(`Link ${p.from}.${p.col} → ${p.to} ignored: table not defined`); continue; }
+    let toCol = p.toCol;
+    if (!toCol) { const pk = b.cols.find(c => c.pk) || b.cols[0]; toCol = pk ? pk.name : null; }
+    const c = a.cols.find(c => c.name.toLowerCase() === p.col.toLowerCase());
+    if (c) c.fk = true;
+    edges.push({from: key(p.from), col: p.col, to: key(p.to), toCol, kind: 'fk'});
+  }
+  if ($('#infer').checked) {
+    for (const [k, n] of Object.entries(nodes)) if (n.kind === 't') for (const c of n.cols) {
+      const m = c.name.match(/^id([A-Z]\w*)$/);
+      if (!m || c.pk || c.fk) continue;
+      const b = m[1].toLowerCase();
+      const t = [b, b + 's', b + 'es', b.replace(/y$/, 'ies')].map(x => nodes[x]).find(x => x && x.kind === 't');
+      if (!t || key(t.name) === k) continue;
+      const pk = t.cols.find(x => x.pk) || t.cols[0];
+      c.fk = true;
+      edges.push({from: k, col: c.name, to: key(t.name), toCol: pk && pk.name, kind: 'fk', inf: true});
+    }
+  }
+  for (const [k, n] of Object.entries(nodes)) if (n.kind === 'v') {
+    for (const s of n.sources) {
+      if (nodes[key(s)] && key(s) !== k) edges.push({from: k, to: key(s), kind: 'vw'});
+      else if (!nodes[key(s)]) warnings.push(`View ${n.name} reads ${s}, which is not defined`);
+    }
+  }
+  autoLayout();
+}
+
+function autoLayout() {
+  const keys = Object.keys(nodes), lvl = {};
+  keys.forEach(k => lvl[k] = 0);
+  for (let i = 0; i < 20; i++) for (const e of edges) {
+    if (e.from !== e.to) lvl[e.from] = Math.max(lvl[e.from], lvl[e.to] + 1);
+  }
+  const colY = {};
+  keys.sort((a, b) => lvl[a] - lvl[b]).forEach(k => {
+    const l = lvl[k], n = nodes[k];
+    n.x = 40 + l * (W + 110);
+    n.y = colY[l] = (colY[l] === undefined ? 40 : colY[l]);
+    colY[l] += HEAD + n.cols.length * ROW + 8 + 36;
+  });
+}
+const height = n => HEAD + Math.max(n.cols.length, 1) * ROW + 8;
+
+function anchor(n, colName, side) {
+  let y = n.y + HEAD / 2;
+  if (colName) { const i = n.cols.findIndex(c => c.name.toLowerCase() === colName.toLowerCase()); if (i >= 0) y = n.y + HEAD + i * ROW + ROW / 2; }
+  return [side === 'r' ? n.x + W : n.x, y];
+}
+
+function connected() {
+  if (!selected) return null;
+  const s = new Set([selected]);
+  edges.forEach(e => { if (e.from === selected) s.add(e.to); if (e.to === selected) s.add(e.from); });
+  return s;
+}
+
+function render() {
+  const vis = Object.keys(nodes).filter(k => !hidden.has(k));
+  const conn = connected();
+  let out = '', maxX = 800, maxY = 500;
+  for (const e of edges) {
+    if (hidden.has(e.from) || hidden.has(e.to)) continue;
+    const a = nodes[e.from], b = nodes[e.to];
+    let fa, ta;
+    if (a.x + W + 20 <= b.x) { fa = 'r'; ta = 'l'; }
+    else if (b.x + W + 20 <= a.x) { fa = 'l'; ta = 'r'; }
+    else { fa = 'r'; ta = 'r'; }
+    const [sx, sy] = anchor(a, e.kind === 'fk' ? e.col : null, fa);
+    const [ex, ey] = anchor(b, e.kind === 'fk' ? e.toCol : null, ta);
+    const d1 = fa === 'r' ? 1 : -1, d2 = ta === 'r' ? 1 : -1, bend = (fa === ta ? 70 : 60);
+    const dim = conn && !(e.from === selected || e.to === selected) ? ' dim' : '';
+    out += `<path class="edge ${e.kind}${e.inf ? ' inf' : ''}${dim}" d="M${sx},${sy} C${sx + d1 * bend},${sy} ${ex + d2 * bend},${ey} ${ex},${ey}"/>`;
+    if (e.kind === 'fk') {
+      out += `<text class="card${dim}" x="${sx + d1 * 8}" y="${sy - 5}" text-anchor="${d1 > 0 ? 'start' : 'end'}">N</text>`;
+      out += `<text class="card${dim}" x="${ex + d2 * 8}" y="${ey - 5}" text-anchor="${d2 > 0 ? 'start' : 'end'}">1</text>`;
+    }
+  }
+  for (const k of vis) {
+    const n = nodes[k], h = height(n);
+    maxX = Math.max(maxX, n.x + W + 120); maxY = Math.max(maxY, n.y + h + 80);
+    const cls = 'node' + (k === selected ? ' sel' : '') + (conn && !conn.has(k) ? ' dim' : '');
+    out += `<g class="${cls}" data-n="${esc(k)}" transform="translate(${n.x},${n.y})">`;
+    out += `<rect class="box" width="${W}" height="${h}" rx="7"/>`;
+    out += `<rect class="${n.kind === 't' ? 'hdT' : 'hdV'}" width="${W}" height="${HEAD}" rx="7"/><rect class="${n.kind === 't' ? 'hdT' : 'hdV'}" y="${HEAD - 8}" width="${W}" height="8"/>`;
+    out += `<text class="nm" x="12" y="20">${esc(n.name)}</text>`;
+    out += `<text class="ct" x="${W - 12}" y="20" text-anchor="end" style="fill:#ffffffcc">${n.kind === 't' ? 'table' : 'view'}</text>`;
+    n.cols.forEach((c, i) => {
+      const y = HEAD + i * ROW;
+      if (i) out += `<line class="rowline" x1="0" x2="${W}" y1="${y}" y2="${y}"/>`;
+      if (c.pk) out += `<text class="bd" x="10" y="${y + 15}" style="fill:var(--pk)">PK</text>`;
+      else if (c.fk) out += `<text class="bd" x="10" y="${y + 15}" style="fill:var(--fk)">FK</text>`;
+      out += `<text class="cn" x="34" y="${y + 15}">${esc(c.name)}</text>`;
+      out += `<text class="ct" x="${W - 12}" y="${y + 15}" text-anchor="end">${esc(c.type)}</text>`;
+    });
+    out += '</g>';
+  }
+  if (!vis.length) out = `<text x="40" y="60" class="ct" style="font-size:14px">${Object.keys(nodes).length ? 'All tables are hidden. Tick one in the list.' : 'Paste CREATE TABLE and CREATE VIEW statements, then choose Draw diagram.'}</text>`;
+  const svg = $('#svg');
+  svg.setAttribute('width', maxX); svg.setAttribute('height', maxY);
+  svg.innerHTML = out;
+}
+
+function renderList() {
+  const el = $('#list'); el.innerHTML = '';
+  for (const [k, n] of Object.entries(nodes)) {
+    const d = document.createElement('div');
+    d.className = 'item' + (k === selected ? ' on' : '');
+    d.innerHTML = `<input type="checkbox" aria-label="Show ${esc(n.name)}" ${hidden.has(k) ? '' : 'checked'}><span tabindex="0" role="button">${esc(n.name)}</span><b class="tag ${n.kind}">${n.kind === 't' ? 'table' : 'view'}</b>`;
+    d.querySelector('input').onchange = e => { e.target.checked ? hidden.delete(k) : hidden.add(k); if (hidden.has(selected)) selected = null; refresh(); };
+    const pick = () => { if (hidden.has(k)) hidden.delete(k); selected = k; refresh(); };
+    d.querySelector('span').onclick = pick;
+    d.querySelector('span').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
+    el.appendChild(d);
+  }
+}
+
+function renderDetail() {
+  const el = $('#detail'), n = nodes[selected];
+  if (!n) { el.innerHTML = '<div class="empty">Select a table or view to see its columns and links.</div>'; return; }
+  const refs = edges.filter(e => e.kind === 'fk' && e.from === selected).map(e => `${esc(e.col)} → ${esc(nodes[e.to].name)}.${esc(e.toCol || '?')}`);
+  const by = edges.filter(e => e.kind === 'fk' && e.to === selected).map(e => `${esc(nodes[e.from].name)}.${esc(e.col)}`);
+  const reads = edges.filter(e => e.kind === 'vw' && e.from === selected).map(e => esc(nodes[e.to].name));
+  const usedBy = edges.filter(e => e.kind === 'vw' && e.to === selected).map(e => esc(nodes[e.from].name));
+  const line = (t, a) => a.length ? `<p style="margin:8px 0 0"><b>${t}</b> ${a.join(', ')}</p>` : '';
+  el.innerHTML = `<div><h2>${esc(n.name)} <span class="tag ${n.kind}">${n.kind === 't' ? 'table' : 'view'}</span></h2>
+    <table><tr><th>Column</th><th>Type</th><th>Keys</th></tr>${n.cols.map(c => `<tr><td>${esc(c.name)}</td><td>${esc(c.type)}</td><td>${[c.pk ? 'PK' : '', c.fk ? 'FK' : '', c.nn ? 'NOT NULL' : ''].filter(Boolean).join(' ')}</td></tr>`).join('')}</table>
+    ${line('References', refs)}${line('Referenced by', by)}${line('Reads from', reads)}${line('Used by view', usedBy)}</div>
+    <div><h2>Statement</h2><pre>${esc(n.sql)}</pre></div>`;
+}
+
+function refresh() { render(); renderList(); renderDetail(); }
+
+function draw() {
+  parse($('#sql').value);
+  const t = Object.values(nodes).filter(n => n.kind === 't').length, v = Object.keys(nodes).length - t;
+  $('#status').textContent = `${t} table${t === 1 ? '' : 's'}, ${v} view${v === 1 ? '' : 's'}, ${edges.length} link${edges.length === 1 ? '' : 's'}`;
+  $('#warn').innerHTML = warnings.map(esc).join('<br>');
+  hidden = new Set([...hidden].filter(k => nodes[k]));
+  if (!nodes[selected]) selected = null;
+  refresh();
+}
+
+// drag and select
+let drag = null;
+$('#svg').addEventListener('pointerdown', ev => {
+  const g = ev.target.closest('[data-n]');
+  if (!g) { if (selected) { selected = null; refresh(); } return; }
+  const k = g.dataset.n, n = nodes[k];
+  drag = {k, sx: ev.clientX, sy: ev.clientY, ox: n.x, oy: n.y, moved: false};
+  $('#svg').setPointerCapture(ev.pointerId);
+});
+$('#svg').addEventListener('pointermove', ev => {
+  if (!drag) return;
+  const dx = ev.clientX - drag.sx, dy = ev.clientY - drag.sy;
+  if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+  drag.moved = true;
+  const n = nodes[drag.k];
+  n.x = Math.max(0, drag.ox + dx); n.y = Math.max(0, drag.oy + dy);
+  render();
+});
+$('#svg').addEventListener('pointerup', () => {
+  if (drag && !drag.moved) { selected = drag.k; refresh(); }
+  drag = null;
+});
+
+$('#draw').onclick = draw;
+$('#infer').onchange = draw;
+$('#layout').onclick = () => { autoLayout(); render(); };
+$('#clear').onclick = () => { $('#sql').value = ''; draw(); };
+$('#showAll').onclick = () => { hidden.clear(); refresh(); };
+$('#hideAll').onclick = () => { hidden = new Set(Object.keys(nodes)); selected = null; refresh(); };
+
+// ---------- Export helpers ----------
+function getVisibleNodes() {
+  return Object.keys(nodes).filter(k => !hidden.has(k)).map(k => nodes[k]);
+}
+
+function buildMarkdown() {
+  const vis = getVisibleNodes();
+  if (!vis.length) return "# ERD Export\n\nNo tables/views to export.";
+  let md = "# Database Schema (ERD Export)\n\n";
+  md += "Generated from SQL to ERD · " + new Date().toISOString().slice(0,10) + "\n\n";
+
+  for (const n of vis) {
+    const kind = n.kind === "t" ? "Table" : "View";
+    md += "## " + n.name + " (" + kind + ")\n\n";
+    if (n.cols.length) {
+      md += "| Column | Type | Keys |\n|--------|------|------|\n";
+      for (const c of n.cols) {
+        const keys = [c.pk ? "PK" : "", c.fk ? "FK" : "", c.nn ? "NOT NULL" : ""].filter(Boolean).join(" ");
+        md += "| " + c.name + " | " + (c.type || "—") + " | " + (keys || "—") + " |\n";
+      }
+      md += "\n";
+    }
+  }
+
+  const fks = edges.filter(e => e.kind === "fk" && !hidden.has(e.from) && !hidden.has(e.to));
+  if (fks.length) {
+    md += "## Relationships\n\n";
+    for (const e of fks) {
+      const from = nodes[e.from].name;
+      const to = nodes[e.to].name;
+      const inf = e.inf ? " (inferred)" : "";
+      md += "- **" + from + "." + e.col + "** → **" + to + "." + (e.toCol || "?") + "**" + inf + "\n";
+    }
+    md += "\n";
+  }
+
+  const vws = edges.filter(e => e.kind === "vw" && !hidden.has(e.from) && !hidden.has(e.to));
+  if (vws.length) {
+    md += "## View Dependencies\n\n";
+    for (const e of vws) {
+      md += "- **" + nodes[e.from].name + "** reads **" + nodes[e.to].name + "**\n";
+    }
+  }
+  return md;
+}
+
+function downloadText(filename, text, mime) {
+  const blob = new Blob([text], { type: mime || "text/plain;charset=utf-8" });
+  saveAs(blob, filename);
+}
+
+function exportMarkdown() {
+  if (!Object.keys(nodes).length) { alert("Draw a diagram first."); return; }
+  downloadText("erd-schema.md", buildMarkdown(), "text/markdown;charset=utf-8");
+}
+
+async function exportPdf() {
+  if (!Object.keys(nodes).length) { alert("Draw a diagram first."); return; }
+  const { jsPDF } = window.jspdf;
+  const canvasEl = document.getElementById("canvas");
+
+  const canvas = await html2canvas(canvasEl, {
+    backgroundColor: getComputedStyle(document.body).getPropertyValue("--bg").trim() || "#eceee9",
+    scale: 2,
+    useCORS: true,
+    logging: false
+  });
+
+  const imgData = canvas.toDataURL("image/png");
+  const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 36;
+
+  pdf.setFontSize(16);
+  pdf.text("SQL to ERD — Schema Diagram", margin, margin);
+  pdf.setFontSize(9);
+  pdf.setTextColor(100);
+  pdf.text(new Date().toLocaleString(), margin, margin + 16);
+
+  const maxW = pageW - margin * 2;
+  const maxH = pageH - margin * 2 - 40;
+  let imgW = canvas.width / 2;
+  let imgH = canvas.height / 2;
+  const ratio = Math.min(maxW / imgW, maxH / imgH, 1);
+  imgW *= ratio;
+  imgH *= ratio;
+  pdf.addImage(imgData, "PNG", margin, margin + 28, imgW, imgH);
+
+  pdf.addPage();
+  pdf.setTextColor(0);
+  pdf.setFontSize(14);
+  pdf.text("Schema Summary", margin, margin);
+  let y = margin + 24;
+  pdf.setFontSize(9);
+  const lineH = 12;
+
+  for (const n of getVisibleNodes()) {
+    if (y > pageH - 60) { pdf.addPage(); y = margin; }
+    pdf.setFont(undefined, "bold");
+    pdf.text(`${n.name} (${n.kind === "t" ? "table" : "view"})`, margin, y);
+    y += lineH;
+    pdf.setFont(undefined, "normal");
+    for (const c of n.cols) {
+      const keys = [c.pk ? "PK" : "", c.fk ? "FK" : "", c.nn ? "NN" : ""].filter(Boolean).join(" ");
+      const line = `  ${c.name}  ${c.type || ""}  ${keys}`;
+      if (y > pageH - 40) { pdf.addPage(); y = margin; }
+      pdf.text(line, margin, y);
+      y += lineH - 1;
+    }
+    y += 8;
+  }
+
+  const fks = edges.filter(e => e.kind === "fk" && !hidden.has(e.from) && !hidden.has(e.to));
+  if (fks.length) {
+    if (y > pageH - 80) { pdf.addPage(); y = margin; }
+    pdf.setFont(undefined, "bold");
+    pdf.text("Relationships", margin, y);
+    y += lineH + 2;
+    pdf.setFont(undefined, "normal");
+    for (const e of fks) {
+      if (y > pageH - 40) { pdf.addPage(); y = margin; }
+      const line = `${nodes[e.from].name}.${e.col} → ${nodes[e.to].name}.${e.toCol || "?"}${e.inf ? " (inferred)" : ""}`;
+      pdf.text(line, margin, y);
+      y += lineH;
+    }
+  }
+
+  pdf.save("erd-diagram.pdf");
+}
+
+async function exportDocx() {
+  if (!Object.keys(nodes).length) { alert("Draw a diagram first."); return; }
+  if (!window.docx) { alert("DOCX library failed to load. Check network / CDN."); return; }
+
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+          HeadingLevel, BorderStyle, WidthType } = window.docx;
+
+  const border = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
+  const borders = { top: border, bottom: border, left: border, right: border };
+  const cell = (text, bold = false, width = 2000) =>
+    new TableCell({
+      borders,
+      width: { size: width, type: WidthType.DXA },
+      children: [new Paragraph({
+        children: [new TextRun({ text: String(text), bold, size: 18, font: "Consolas" })]
+      })]
+    });
+
+  const children = [
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun("Database Schema (ERD Export)")]
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: `Generated ${new Date().toLocaleString()}`, italics: true, size: 18, color: "666666" })]
+    }),
+    new Paragraph({ children: [] })
+  ];
+
+  for (const n of getVisibleNodes()) {
+    children.push(new Paragraph({
+      heading: HeadingLevel.HEADING_2,
+      children: [new TextRun(`${n.name} (${n.kind === "t" ? "Table" : "View"})`)]
+    }));
+
+    if (n.cols.length) {
+      const header = new TableRow({
+        children: [cell("Column", true, 2400), cell("Type", true, 2000), cell("Keys", true, 1600)]
+      });
+      const rows = n.cols.map(c => {
+        const keys = [c.pk ? "PK" : "", c.fk ? "FK" : "", c.nn ? "NOT NULL" : ""].filter(Boolean).join(" ");
+        return new TableRow({
+          children: [cell(c.name, false, 2400), cell(c.type || "—", false, 2000), cell(keys || "—", false, 1600)]
+        });
+      });
+      children.push(new Table({
+        width: { size: 6000, type: WidthType.DXA },
+        rows: [header, ...rows]
+      }));
+    }
+    children.push(new Paragraph({ children: [] }));
+  }
+
+  const fks = edges.filter(e => e.kind === "fk" && !hidden.has(e.from) && !hidden.has(e.to));
+  if (fks.length) {
+    children.push(new Paragraph({
+      heading: HeadingLevel.HEADING_2,
+      children: [new TextRun("Relationships")]
+    }));
+    for (const e of fks) {
+      const text = `${nodes[e.from].name}.${e.col} → ${nodes[e.to].name}.${e.toCol || "?"}${e.inf ? " (inferred)" : ""}`;
+      children.push(new Paragraph({
+        children: [new TextRun({ text: "• " + text, size: 20 })]
+      }));
+    }
+  }
+
+  const doc = new Document({
+    sections: [{ properties: {}, children }]
+  });
+
+  const blob = await Packer.toBlob(doc);
+  saveAs(blob, "erd-schema.docx");
+}
+
+$('#exportMd').onclick = exportMarkdown;
+$('#exportPdf').onclick = () => exportPdf().catch(err => { console.error(err); alert("PDF export failed: " + err.message); });
+$('#exportDocx').onclick = () => exportDocx().catch(err => { console.error(err); alert("DOCX export failed: " + err.message); });
+
+$('#sql').value = SAMPLE;
+draw();
+</script>
+</body>
+</html>
